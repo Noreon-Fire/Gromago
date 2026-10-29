@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>PokeMMO Overlay</title>
+<style>
+:root{--bg:#16181d;--bar:#20242c;--c:#1d2129;--b:#2a2f3a;--f:#e8e8e8;--m:#7b8494;--a:#4cc2ff;--r:#ff5a5a;--g:#5ee08a;--y:#ffd166;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{background:var(--bg);color:var(--f);font:14px/1.35 system-ui,sans-serif;display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bar)}header span{margin-left:12px;font-size:18px}
+nav{display:flex;background:var(--bar)}nav button{flex:1;font-size:19px;padding:7px 0;background:none;border:0;border-bottom:2px solid transparent}nav .on{border-color:var(--a)}
+main{flex:1;overflow:auto;padding:6px}section{display:none}section.on{display:block}
+.c{background:var(--c);border:1px solid #2b303b;border-radius:8px;padding:8px;margin:0 0 7px}
+.r{display:flex;gap:5px;align-items:center;margin-top:5px}.h{display:flex;gap:8px;align-items:center}.h b{flex:1}
+input{flex:1;min-width:0;background:var(--b);color:var(--f);border:1px solid #3a4050;border-radius:6px;padding:8px;font:inherit}input:focus{outline:1px solid var(--a)}
+button{background:var(--b);color:var(--f);border:0;border-radius:6px;padding:8px 11px;font:inherit}button.d{color:var(--r)}.lk{width:100%;margin:2px 0 8px;color:var(--m)}
+.m,small{color:var(--m);font-size:12px}.st{white-space:pre-line;font-size:13px;margin-top:2px}.ic{color:var(--m);padding:2px 6px}
+h3{margin:12px 4px 5px;font-size:12px;color:var(--m)}.ln{justify-content:space-between;padding:3px 4px}.ln span:first-child{flex:1}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px}.k{background:var(--c);border:1px solid #2b303b;border-radius:8px;padding:6px 3px;text-align:center;display:flex;flex-direction:column}.k b{font-size:13px}
+.big{font-size:20px;font-weight:700;margin-top:6px;min-height:1.3em}label{display:block;font-size:12px;color:var(--m);margin:6px 0 2px}
+#al{display:flex;gap:6px;align-items:center;background:var(--r);color:#fff;padding:6px 8px}#al[hidden],#md[hidden]{display:none}#at{flex:1;font-weight:600}
+#md{position:fixed;inset:0;background:#000a;padding:14px;overflow:auto}
+.tk .tx{flex:1}.dn{text-decoration:line-through;color:var(--m)}.ck{font-size:20px;color:var(--a);padding:0 4px}
+</style></head><body>
+<header><b>🍓 PokeMMO</b><span id="hb"></span></header><nav id="nv"></nav>
+<div id="al" hidden><span id="at"></span><button onclick="dis(0)">OK</button><button onclick="dis(1)">+5 min</button></div>
+<main>
+<section id="home"></section><section id="berries"></section><section id="reruns"></section><section id="ar"></section>
+<section id="calc"><div class="c"><label>Calcul (250k*3, 1,5m, 2m940k, 10%)</label><div class="r"><input id="ce" oninput="cl()"><button onclick="cp($('#cr').dataset.v||'')">⧉</button></div><div id="cr" class="big"></div></div>
+<div class="c"><label>Prix d'achat max pour une revente</label><div class="r"><input id="cs" placeholder="revente" oninput="cl()"><input id="cm" placeholder="marge % ou ₽" oninput="cl()"></div><div id="cx" class="big"></div></div></section>
+<section id="gains"></section>
+<section id="tasks"><div class="c"><div class="r"><input id="tt" placeholder="Nouvelle tâche"><input id="tm" placeholder="18:30 / +15" style="max-width:6.5rem"><button onclick="ad()">＋</button></div></div><div id="tl"></div><button class="lk" onclick="cdn()">Vider les terminées</button></section>
+</main><div id="md" hidden></div>
+<script>
+const $=s=>document.querySelector(s),H=36e5,KEY='pmo4',nb='\u00a0',uid=()=>Math.random().toString(36).slice(2,10);
+const MO=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'],DJ=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'],T=[['home','🏠'],['berries','🍓'],['reruns','🔁'],['ar','📈'],['calc','🧮'],['gains','💰'],['tasks','☑']];
+let D=JSON.parse(localStorage.getItem(KEY)||'null')||{},A=[];
+D.tr=D.tr||[{id:'gym1',type:'cd',name:'Gym rerun – 1ère heure',hours:18,cost:18000},{id:'gym2',type:'cd',name:'Gym rerun – 2ᵉ heure',hours:18,cost:18000},{id:'redarenes',type:'cd',name:'Rerun Red + arènes',hours:168,cost:144000},{id:'mepo',type:'berry',name:'Baies Mepo',ws:9,we:12,hs:20,he:28,hw:3,cost:2940000}].map(t=>({...t,fired:[]}));
+D.gains=D.gains||[];D.trades=D.trades||[];D.tasks=D.tasks||[];D.exp=D.exp||[];D.bal=D.bal||0;D.cfg=D.cfg||{margin:10,red:72};D.tab=D.tab||'home';
+const save=()=>localStorage.setItem(KEY,JSON.stringify(D));
+const fn=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,nb),fm=(n,s)=>(n<0?'-':s&&n>0?'+':'')+fn(Math.abs(n))+nb+'₽',col=n=>n>0?'var(--g)':n<0?'var(--r)':'var(--m)';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),flash=e=>{e.style.outline='2px solid var(--r)';setTimeout(()=>e.style.outline='',500)};
+const pm=s=>{s=s.toLowerCase().replace(/[₽$\s\u00a0_]/g,'');let m=s.match(/^(\d+(?:[.,]\d+)?)([km])$/);if(m)return Math.round(parseFloat(m[1].replace(',','.'))*(m[2]=='k'?1e3:1e6));if(/^\d[\d.,]*$/.test(s))return +s.replace(/[.,]/g,'');throw 0};
+const p2=n=>String(n).padStart(2,'0'),dm=t=>{const d=new Date(t);return p2(d.getDate())+'/'+p2(d.getMonth()+1)};
+const fd=ms=>{let s=Math.max(0,ms/1e3|0),h=s/3600|0,m=s%3600/60|0;return h>=48?`${h/24|0} j ${h%24} h`:h?`${h} h ${p2(m)}`:s>=600?`${m} min`:m?`${m} min ${p2(s%60)} s`:`${s} s`};
+const fw=t=>{const d=new Date(t),n=new Date(),k=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(n.getFullYear(),n.getMonth(),n.getDate()))/864e5),hm=d.toTimeString().slice(0,5);return k==0?hm:k==1?'demain '+hm:dm(t)+' '+hm};
+const tod=(h,m)=>{const d=new Date();d.setHours(h,m,0,0);return d.getTime()};
+const pt=s=>{s=s.trim().toLowerCase();if(!s)return null;let m=s.match(/^\+\s*(\d+)/);if(m)return Date.now()+m[1]*6e4;m=s.match(/^(\d{1,2})\s*[:h]\s*(\d{2})?$/);if(!m||m[1]>23||(m[2]||0)>59)throw 0;const t=tod(+m[1],+(m[2]||0));return t<=Date.now()?t+864e5:t};
+const ps=s=>{s=s.trim().toLowerCase();const n=Date.now();if(!s||s=='now')return n;let m=s.match(/^-\s*(\d+)/);if(m)return n-m[1]*6e4;m=s.match(/^(\d{1,2})\s*[:h]\s*(\d{2})?$/);if(!m||m[1]>23||(m[2]||0)>59)throw 0;const t=tod(+m[1],+(m[2]||0));return t>n?t-864e5:t};
+const TX=.05,CAP=25000,tax=s=>Math.min(s*TX,CAP),prof=(b,s)=>s-tax(s)-b,sfn=n=>n*TX<=CAP*(1-TX)?Math.ceil(Math.round(n/(1-TX)*1e6)/1e6):n+CAP;
+const ac=(h,R)=>{const r=R<=0?1:Math.max(0,Math.min(1,h/R)),G=[94,224,138],Y=[255,209,102],X=[255,90,90],[a,b,k]=r<.5?[G,Y,r*2]:[Y,X,(r-.5)*2];return'rgb('+a.map((v,i)=>Math.round(v+(b[i]-v)*k))+')'};
+const cp=t=>window.Android?Android.copy(t):navigator.clipboard&&navigator.clipboard.writeText(t);
+// ---- timers
+const ev=(t,s)=>{const a=h=>s+h*H,n=t.name;if(t.type=='cd')return[['ready',a(t.hours),`✅ ${n} : disponible !`]];
+const e=[['wo',a(t.ws),`💧 ${n} : arroser maintenant (jusqu'à ${fw(a(t.we))})`,1]];if(t.we-t.ws>1)e.push(['ww',a(t.we-1),`💧 ${n} : plus qu'1 h pour arroser !`,1]);
+e.push(['wm',a(t.we),`⚠ ${n} : fenêtre d'arrosage dépassée`,1],['ho',a(t.hs),`🌿 ${n} : mûres, à récolter (avant ${fw(a(t.he))})`]);
+if(t.hw>0&&t.he-t.hw>t.hs)e.push(['hw',a(t.he-t.hw),`🌿 ${n} : plus que ${t.hw} h pour récolter !`]);e.push(['he',a(t.he),`⚠ ${n} : délai de récolte dépassé`]);return e};
+const st=(t,n)=>{if(!t.start)return["Entre l'heure de début puis ▶ (vide = maintenant)",'var(--m)'];const a=h=>t.start+h*H;
+if(t.type=='cd'){const e=a(t.hours);return n<e?[`⏳ Dispo dans ${fd(e-n)} (à ${fw(e)})`,'var(--f)']:[`✅ Disponible (depuis ${fd(n-e)})`,'var(--g)']}
+const ws=a(t.ws),we=a(t.we),hs=a(t.hs),he=a(t.he);if(n>=he)return['⚠ Délai de récolte dépassé','var(--r)'];const ripe=n>=hs,w=`entre ${fw(hs)} et ${fw(he)}`,hv=ripe?`🌿 À RÉCOLTER ${w} (reste ${fd(he-n)})`:`🌿 Récolte ${w} (mûres dans ${fd(hs-n)})`;
+if(t.watered)return[`💧 Arrosé ✔\n${hv}`,ripe?'var(--y)':'var(--g)'];if(n<ws)return[`🌱 Arrosage dans ${fd(ws-n)} (à ${fw(ws)})\n${hv}`,'var(--f)'];if(n<we)return[`💧 À ARROSER ! reste ${fd(we-n)}\n${hv}`,'var(--y)'];return[`⚠ Arrosage raté\n${hv}`,'var(--r)']};
+const arm=(t,s,kw)=>{t.start=s;if(!kw)t.watered=false;t.fired=ev(t,s).filter(e=>e[1]<=Date.now()).map(e=>e[0]);A=A.filter(a=>a.id!=t.id);bar()};
+const TR=id=>D.tr.find(x=>x.id==id);
+const card=t=>`<div class="c"><div class="h"><b>${esc(t.name)}</b><span class="ic" onclick="ed('${t.id}')">✎</span></div><div class="st" id="st-${t.id}"></div>${t.cost?`<div class="m">🧾 ${t.type=='cd'?'bonus':'graines'} : −${fm(t.cost)} déduits du gain</div>`:''}
+<div class="r"><input id="s-${t.id}" placeholder="début : 14:30 / -20 (min)"><button onclick="go('${t.id}')">▶</button>${t.type=='cd'?`<button onclick="rs('${t.id}')">■</button>`:`<button id="w-${t.id}" onclick="wt('${t.id}')">💧</button><button onclick="rs('${t.id}')">✔</button>`}</div>
+<div class="r"><input id="b-${t.id}" placeholder="avant" value="${t.before!=null?fn(t.before):''}" onchange="bf('${t.id}')"><input id="a-${t.id}" placeholder="après"><button onclick="vg('${t.id}')">✔</button></div></div>`;
+function rB(){$('#berries').innerHTML=D.tr.filter(t=>t.type=='berry').map(card).join('');$('#reruns').innerHTML=D.tr.filter(t=>t.type=='cd').map(card).join('')+'<button class="lk" onclick="ed()">＋ Nouveau cooldown</button><button class="lk" onclick="ra()">Tout arrêter</button>';upd()}
+function upd(){const n=Date.now();D.tr.forEach(t=>{const e=$('#st-'+t.id);if(!e)return;let[x,c]=st(t,n);if(t.last)x+=`\nDernier gain net : ${fm(t.last.gain,1)} (${fw(t.last.ts)})`;if(e.textContent!=x)e.textContent=x;e.style.color=c;const w=$('#w-'+t.id);if(w)w.style.color=t.watered?'var(--g)':''})}
+function bf(id){const t=TR(id),i=$('#b-'+id);try{t.before=i.value.trim()?pm(i.value):null;if(t.before!=null)i.value=fn(t.before);save();return 1}catch(e){flash(i)}}
+function go(id){const t=TR(id),i=$('#s-'+id);if(!bf(id))return;try{arm(t,ps(i.value))}catch(e){return flash(i)}save();rB()}
+function rs(id){const t=TR(id);t.start=null;t.fired=[];t.watered=false;A=A.filter(a=>a.id!=id);save();bar();upd()}
+function ra(){D.tr.forEach(t=>{t.start=null;t.fired=[];t.watered=false});A=A.filter(a=>a.k=='t');save();bar();upd()}
+function wt(id){const t=TR(id);if(!t.start)return;t.watered=!t.watered;if(t.watered)A=A.filter(a=>!(a.id==id&&/^w/.test(a.k)));save();bar();upd()}
+function vg(id){const t=TR(id),a=$('#a-'+id),b=$('#b-'+id);try{const af=pm(a.value),be=b.value?pm(b.value):t.before;if(be==null)throw 0;const g=af-be-(t.cost||0);D.gains.push({ts:Date.now(),name:t.name,before:be,after:af,cost:t.cost||0,gain:g});t.before=null;t.last={ts:Date.now(),gain:g};save();rB();ask()}catch(e){flash(a)}}
+function ed(id){const t=TR(id),nw=!t,ks=nw||t.type=='cd'?[['hours','Durée (h ; 168 = 1 semaine)']]:[['ws','Arrosage dès (h après plantation)'],['we',"Arrosage jusqu'à (h)"],['hs','Récolte dès (h)'],['he',"Récolte jusqu'à (h)"],['hw','Alerte X h avant la fin']];ks.push(['cost','Coût déduit par gain (₽ : 18k, 144 000)']);
+$('#md').innerHTML=`<div class="c"><label>Nom</label><input id="e-name" value="${nw?'':esc(t.name)}">${ks.map(([k,l])=>`<label>${l}</label><input id="e-${k}" value="${nw?(k=='cost'?0:18):t[k]}">`).join('')}<div class="r"><button onclick="es('${id}')">Enregistrer</button>${nw?'':`<button class="d" onclick="ex('${id}')">Supprimer</button>`}<button onclick="$('#md').hidden=1">Annuler</button></div></div>`;$('#md').hidden=0}
+function es(id){let t=TR(id);const n=$('#e-name').value.trim(),v={};if(!n)return;try{[...$('#md').querySelectorAll('input')].slice(1).forEach(i=>{const k=i.id.slice(2);if(k=='cost')v[k]=i.value.trim()?pm(i.value):0;else{const x=parseFloat(i.value.replace(',','.'));if(isNaN(x)||x<0||(k!='hw'&&x<=0))throw 0;v[k]=x}});if(v.ws!=null&&!(v.ws<v.we&&v.we<=v.hs&&v.hs<v.he))throw 0}catch(e){return flash($('#md'))}
+if(!t){t={id:uid(),type:'cd',fired:[]};D.tr.push(t)}t.name=n;Object.assign(t,v);if(t.start)arm(t,t.start,1);save();$('#md').hidden=1;rB()}
+function ex(id){D.tr=D.tr.filter(x=>x.id!=id);A=A.filter(a=>a.id!=id);save();$('#md').hidden=1;rB();bar()}
+// ---- alertes
+const P=a=>{A.push(a);window.Android&&Android.notify(a.text);navigator.vibrate&&navigator.vibrate([300,150,300]);bar()};
+function bar(){const a=A[0];$('#al').hidden=!a;if(a)$('#at').textContent=a.text+(A.length>1?` (+${A.length-1})`:'');window.Android&&Android.badge(A.length)}
+function dis(z){const a=A.shift();if(!a)return;if(a.k=='t'){const t=D.tasks.find(x=>x.id==a.id);if(t){if(z){t.due=Date.now()+3e5;t.alerted=0}else if(t.daily&&t.clock){t.due=pt(t.clock);t.alerted=0}}save();rT()}
+else if(z)setTimeout(()=>{const t=TR(a.id);if(t&&t.start==a.s&&!(/^w/.test(a.k)&&t.watered))P(a)},3e5);bar()}
+function tick(){const n=Date.now();let ch=0;
+D.tasks.forEach(t=>{if(!t.due||n<t.due)return;if(t.done){if(t.daily&&t.clock){t.done=0;t.alerted=0;t.due=pt(t.clock);ch=1}return}if(!t.alerted){t.alerted=1;ch=1;P({id:t.id,k:'t',text:'⏰ '+t.text})}});
+D.tr.forEach(t=>{if(!t.start)return;ev(t,t.start).forEach(([k,w,x,sk])=>{if(t.fired.includes(k)||n<w)return;t.fired.push(k);ch=1;if(!(sk&&t.watered))P({id:t.id,k,text:x,s:t.start})})});
+if(ch){save();rT()}upd();setTimeout(tick,1000)}
+// ---- A/R
+function rA(){const n=Date.now(),c=D.cfg,sk=D.trades.filter(t=>t.sell==null),sd=D.trades.filter(t=>t.sell!=null);
+$('#ar').innerHTML=`<div class="c"><div class="r"><input id="tn" placeholder="Pokémon"><input id="tb" placeholder="achat (ex 850k)"><button onclick="addT()">＋</button></div><div class="m">Taxe 5 % (max 25 000 ₽) · marge ${c.margin} % · rouge après ${c.red} h <span class="ic" onclick="cf()">⚙</span><span class="ic" onclick="cp(csv())">CSV</span></div></div>`
++(sk.length?'<h3>En stock</h3>':'')+sk.map(t=>`<div class="c" style="border-left:3px solid ${ac((n-t.bts)/H,c.red)}"><div class="h"><b>${esc(t.name)}</b><span class="m">${fm(t.buy)} · ${fd(n-t.bts)}</span><span class="ic" onclick="dt('${t.id}')">✕</span></div><div class="m">Revente mini ${fm(sfn(t.buy))} · visée ${fm(sfn(Math.ceil(Math.round(t.buy*(1+c.margin/100)*1e6)/1e6)))}</div><div class="r"><input id="sp-${t.id}" placeholder="prix de vente" oninput="pv('${t.id}')"><button onclick="sl('${t.id}')">✔</button></div><div class="m" id="pv-${t.id}"></div></div>`).join('')
++(sd.length?'<h3>Revendus</h3>':'')+sd.slice().reverse().map(t=>{const p=prof(t.buy,t.sell);return`<div class="r ln"><span>${esc(t.name)}<br><small>${fm(t.buy)} → ${fm(t.sell)}</small></span><b style="color:${col(p)}">${fm(p,1)}</b><span class="ic" onclick="dt('${t.id}')">✕</span></div>`}).join('')}
+function addT(){const a=$('#tn'),b=$('#tb');if(!a.value.trim())return flash(a);try{D.trades.push({id:uid(),name:a.value.trim(),buy:pm(b.value),bts:Date.now(),sell:null,sts:null})}catch(e){return flash(b)}save();rA()}
+function pv(id){const t=D.trades.find(x=>x.id==id);try{const s=pm($('#sp-'+id).value);$('#pv-'+id).textContent=`Net ${fm(prof(t.buy,s),1)} (taxe ${fm(tax(s))})`}catch(e){$('#pv-'+id).textContent=''}}
+function sl(id){const t=D.trades.find(x=>x.id==id),i=$('#sp-'+id);try{const s=pm(i.value);if(s<=0)throw 0;t.sell=s;t.sts=Date.now();save();rA()}catch(e){flash(i)}}
+function dt(id){D.trades=D.trades.filter(x=>x.id!=id);save();rA()}
+const csv=()=>['Achat;Pokémon;Prix achat;Vente;Prix vente;Taxe;Bénéfice',...D.trades.map(t=>{const s=t.sell!=null;return[fw(t.bts),t.name,t.buy,s?fw(t.sts):'',s?t.sell:'',s?Math.round(tax(t.sell)):'',s?Math.round(prof(t.buy,t.sell)):''].join(';')})].join('\n');
+function cf(){$('#md').innerHTML=`<div class="c"><label>Marge visée (%)</label><input id="f1" value="${D.cfg.margin}"><label>Heures avant carte rouge</label><input id="f2" value="${D.cfg.red}"><div class="r"><button onclick="sc()">Enregistrer</button><button onclick="$('#md').hidden=1">Annuler</button></div></div>`;$('#md').hidden=0}
+function sc(){const m=parseFloat($('#f1').value.replace(',','.')),r=parseFloat($('#f2').value.replace(',','.'));if(isNaN(m)||isNaN(r))return;D.cfg={margin:m,red:r};save();$('#md').hidden=1;rA()}
+// ---- calcul
+const ce=s=>{s=String(s).toLowerCase().replace(/[×x]/g,'*').replace(/÷/g,'/').replace(/[−–]/g,'-').replace(/[\s\u00a0₽]/g,'').replace(/,/g,'.');
+s=s.replace(/(\d+(?:\.\d+)?)m(\d+(?:\.\d+)?)k?/g,'($1*1e6+$2*1e3)').replace(/(\d+(?:\.\d+)?)([km])/g,(_,a,u)=>`(${a}*${u=='k'?1e3:1e6})`).replace(/(\d+(?:\.\d+)?)%/g,'($1/100)');
+if(!s||!/^[\d+\-*/().e]+$/.test(s))throw 0;const v=Function('"use strict";return('+s+')')();if(!isFinite(v))throw 0;return v};
+function cl(){const r=$('#cr');try{const v=ce($('#ce').value);r.textContent='= '+(Number.isInteger(v)?fn(v):v.toLocaleString('fr-FR',{maximumFractionDigits:6}));r.dataset.v=v}catch(e){r.textContent='';r.dataset.v=''}
+try{const s=ce($('#cs').value),m=ce($('#cm').value||D.cfg.margin),net=s-tax(s);$('#cx').textContent='Achat max : '+fm(Math.floor(Math.round((m<=100?net/(1+m/100):net-m)*1e6)/1e6))}catch(e){$('#cx').textContent=''}}
+// ---- gains
+const dg=ts=>{D.gains=D.gains.filter(g=>g.ts!=ts);save();rG()};
+function rG(){const N=new Date(),d0=new Date(N.getFullYear(),N.getMonth(),N.getDate()).getTime(),ms=new Date(N.getFullYear(),N.getMonth(),1).getTime(),ws=Math.max(d0-(N.getDay()+6)%7*864e5,ms),
+E=[...D.gains,...D.trades.filter(t=>t.sell!=null).map(t=>({ts:t.sts,name:'📈 Achat / Revente',gain:Math.round(prof(t.buy,t.sell)),ar:1}))].sort((a,b)=>a.ts-b.ts),
+cur=E.filter(e=>e.ts>=ms),old=E.filter(e=>e.ts<ms),sum=l=>l.reduce((s,e)=>s+e.gain,0),
+bx=(c,l,u)=>`<div class="k"><small>${c}</small><b style="color:${col(sum(l))}">${fm(sum(l),1)}</b><small>${l.length} ${u}${l.length>1?'s':''}</small></div>`,
+grp=(l,f)=>{const m={};l.forEach(e=>{const k=f(e);m[k]=m[k]||[0,0];m[k][0]+=e.gain;m[k][1]++});return Object.entries(m)},
+ln=(a,b,g,x)=>`<div class="r ln"><span>${a}</span><b style="color:${col(g)}">${b}</b>${x?`<span class="ic" onclick="dg(${x})">✕</span>`:''}</div>`,mo=MO[N.getMonth()];
+$('#gains').innerHTML=!E.length?'<div class="m">Aucun gain. Saisis « avant » puis « après » sur une carte et touche ✔. Les reventes A/R apparaissent ici.</div>':
+`<div class="g3">${bx("Aujourd'hui",cur.filter(e=>e.ts>=d0),'op.')}${bx('Semaine',cur.filter(e=>e.ts>=ws),'op.')}${bx(mo,cur,'op.')}</div><h3>Détail (${mo})</h3><div class="g3">${bx('Runs & baies',cur.filter(e=>!e.ar),'run')}${bx('📈 A/R',cur.filter(e=>e.ar),'revente')}${bx('Total',cur,'op.')}</div>`
++(cur.length?'<h3>Par activité</h3>'+grp(cur,e=>e.name).sort((a,b)=>b[1][0]-a[1][0]).map(([k,[t,c]])=>ln(`${esc(k)} (${c}×, moy. ${fm(t/c,1)})`,fm(t,1),t)).join('')+'<h3>Par jour</h3>'+grp(cur,e=>new Date(e.ts).setHours(0,0,0,0)).sort((a,b)=>b[0]-a[0]).map(([k,[t,c]])=>ln(`${DJ[new Date(+k).getDay()]} ${dm(+k)} (${c}×)`,fm(t,1),t)).join(''):'')
++(old.length?'<h3>Mois précédents</h3>'+grp(old,e=>{const d=new Date(e.ts);return d.getFullYear()*100+d.getMonth()}).sort((a,b)=>b[0]-a[0]).slice(0,6).map(([k,[t]])=>ln(`${MO[k%100]} ${k/100|0}`,fm(t,1),t)).join(''):'')
++'<h3>Dernières entrées</h3>'+E.slice(-15).reverse().map(e=>ln(`${dm(e.ts)} ${fw(e.ts).slice(-5)} ${esc(e.name)}${e.cost?` (coût −${fn(e.cost)})`:''}`,fm(e.gain,1),e.gain,e.ar?0:e.ts)).join('')}
+// ---- tâches
+function rT(){$('#tl').innerHTML=D.tasks.map(t=>`<div class="r tk"><span class="ck" onclick="tg('${t.id}')">${t.done?'☑':'☐'}</span><span class="tx ${t.done?'dn':''}">${esc(t.text)}</span>${t.due?`<span class="m" style="color:${t.alerted&&!t.done?'var(--r)':''}" onclick="dl('${t.id}')">${t.daily?'↻':'⏰'} ${fw(t.due)}</span>`:''}<span class="ic" onclick="rm('${t.id}')">✕</span></div>`).join('')||'<div class="m">Aucune tâche.</div>'}
+function ad(){const x=$('#tt').value.trim();if(!x)return;let d;try{d=pt($('#tm').value)}catch(e){return flash($('#tm'))}D.tasks.push({id:uid(),text:x,done:0,due:d,clock:d?new Date(d).toTimeString().slice(0,5):null,daily:0,alerted:0});$('#tt').value=$('#tm').value='';save();rT()}
+function tg(id){const t=D.tasks.find(x=>x.id==id);t.done=t.done?0:1;if(t.done)A=A.filter(a=>!(a.k=='t'&&a.id==id));save();rT();bar()}
+function dl(id){const t=D.tasks.find(x=>x.id==id);if(t.due&&t.clock){t.daily=t.daily?0:1;save();rT()}}
+function rm(id){D.tasks=D.tasks.filter(x=>x.id!=id);A=A.filter(a=>!(a.k=='t'&&a.id==id));save();rT();bar()}
+function cdn(){D.tasks=D.tasks.filter(t=>!(t.done&&!t.daily));save();rT()}
+// ---- accueil
+const fl=()=>({G:[...D.gains.map(g=>({ts:g.ts,g:g.gain+(g.cost||0),c:g.cost||0})),...D.trades.filter(t=>t.sell!=null).map(t=>({ts:t.sts,g:Math.round(prof(t.buy,t.sell)),c:0}))],X:D.exp.map(e=>({ts:e.ts,c:e.amt}))});
+const NET=()=>{const{G,X}=fl();return G.reduce((s,e)=>s+e.g-e.c,0)-X.reduce((s,e)=>s+e.c,0)};
+function rH(){const{G,X}=fl(),N=new Date(),d0=new Date(N.getFullYear(),N.getMonth(),N.getDate()).getTime(),ms=new Date(N.getFullYear(),N.getMonth(),1).getTime(),
+per=t0=>{const g=G.filter(e=>e.ts>=t0),x=X.filter(e=>e.ts>=t0),a=g.reduce((s,e)=>s+e.g,0),b=g.reduce((s,e)=>s+e.c,0)+x.reduce((s,e)=>s+e.c,0);return[a,b,a-b]},
+row=(n,[a,b,c])=>`<div class="r ln"><span>${n}</span><span style="color:var(--g)">${fm(a)}</span><span style="color:var(--r)">−${fm(b)}</span><b style="color:${col(c)}">${fm(c,1)}</b></div>`,cur=D.bal+NET();
+$('#home').innerHTML=`<div class="c"><small>Argent actuel</small><div class="big" style="color:${col(cur)}">${fm(cur)}</div><button class="lk" onclick="am()">Ajuster mon argent réel</button></div>
+<div class="c"><div class="r ln"><span class="m">Période</span><span class="m">Gains</span><span class="m">Dépenses</span><span class="m">Net</span></div>${row("Aujourd'hui",per(d0))}${row(MO[N.getMonth()],per(ms))}${row('Total',per(0))}<div class="m">Dépenses = graines/bonus des runs + autres dépenses.</div></div>
+<div class="c"><b>As-tu fait d'autres dépenses ?</b><div class="m">${D.noExp?'Dernière réponse : '+fw(D.noExp):'Pas encore répondu'}</div><div class="r"><button onclick="xf()">Oui, ajouter</button><button onclick="D.noExp=Date.now();save();rH()">Non, aucune</button></div></div>`
++(D.exp.length?'<h3>Autres dépenses</h3>'+D.exp.slice(-10).reverse().map(e=>`<div class="r ln"><span>${dm(e.ts)} ${esc(e.name)}</span><b style="color:var(--r)">−${fm(e.amt)}</b><span class="ic" onclick="dx('${e.id}')">✕</span></div>`).join(''):'')}
+const dx=id=>{D.exp=D.exp.filter(e=>e.id!=id);save();rH()};
+const ask=()=>{$('#md').innerHTML=`<div class="c"><b>As-tu fait d'autres dépenses ?</b><div class="r"><button onclick="xf()">Oui</button><button onclick="D.noExp=Date.now();save();$('#md').hidden=1;rH()">Non</button></div></div>`;$('#md').hidden=0};
+const xf=()=>{$('#md').innerHTML=`<div class="c"><label>Dépense (balls, ticket, achat…)</label><input id="x1"><label>Montant</label><input id="x2" placeholder="ex 50k"><div class="r"><button onclick="xs()">Enregistrer</button><button onclick="ask()">Retour</button></div></div>`;$('#md').hidden=0};
+const xs=()=>{const n=$('#x1').value.trim()||'Dépense',i=$('#x2');try{const a=pm(i.value);if(a<=0)throw 0;D.exp.push({id:uid(),ts:Date.now(),name:n,amt:a});D.noExp=Date.now();save();rH();ask()}catch(e){flash(i)}};
+const am=()=>{$('#md').innerHTML=`<div class="c"><label>Argent actuel réel (en jeu)</label><input id="y1" placeholder="ex 12m500k"><div class="r"><button onclick="ys()">Enregistrer</button><button onclick="$('#md').hidden=1">Annuler</button></div></div>`;$('#md').hidden=0};
+const ys=()=>{try{D.bal=pm($('#y1').value)-NET();save();$('#md').hidden=1;rH()}catch(e){flash($('#y1'))}};
+// ---- navigation
+function show(k){D.tab=k;T.forEach(([x])=>{$('#'+x).classList.toggle('on',x==k);$('#n-'+x).classList.toggle('on',x==k)});if(k=='gains')rG();if(k=='ar')rA();if(k=='home')rH();save()}
+$('#nv').innerHTML=T.map(([k,i])=>`<button id="n-${k}" onclick="show('${k}')">${i}</button>`).join('');
+if(window.Android)$('#hb').innerHTML='<span onclick="Android.hide()">−</span><span onclick="Android.quit()">⏻</span>';
+rB();rT();show(T.some(t=>t[0]==D.tab)?D.tab:'home');tick();
+</script></body></html>
